@@ -43,6 +43,7 @@
   var currentShapeType = null;
   var currentShape = null;
   var shapeStartPt = null;
+  var currentTool = 'select';
 
   function clearToolListeners() {
     if (!fabricCanvas) return;
@@ -65,11 +66,24 @@
       fill: strokeColor.value,
     });
     fabricCanvas.add(text);
+    fabricCanvas.setActiveObject(text);
+    fabricCanvas.renderAll();
+
+    // Enter editing immediately → focuses Fabric's hidden textarea → opens keyboard on mobile
+    text.enterEditing();
+    text.selectAll();
+
+    // Clear tool listeners now (no more text-placement on next tap)
     clearToolListeners();
-    setTool('select');
-    document.querySelector('.btn-tool[data-tool="select"]').classList.add('active');
-    document.querySelectorAll('.btn-tool').forEach(function (b) {
-      if (b.dataset.tool !== 'select') b.classList.remove('active');
+
+    // Defer the switch back to Select until the user actually finishes typing
+    // (keyboard dismissed / tapped outside). This keeps keyboard open while typing.
+    fabricCanvas.once('text:editing:exited', function () {
+      setTool('select');
+      document.querySelector('.tb-btn[data-tool="select"]').classList.add('active');
+      document.querySelectorAll('.tb-btn[data-tool]').forEach(function (b) {
+        if (b.dataset.tool !== 'select') b.classList.remove('active');
+      });
     });
   }
 
@@ -109,8 +123,8 @@
     currentShape = null;
     shapeStartPt = null;
     setTool('select');
-    document.querySelector('.btn-tool[data-tool="select"]').classList.add('active');
-    document.querySelectorAll('.btn-tool').forEach(function (b) {
+    document.querySelector('.tb-btn[data-tool="select"]').classList.add('active');
+    document.querySelectorAll('.tb-btn[data-tool]').forEach(function (b) {
       if (b.dataset.tool !== 'select') b.classList.remove('active');
     });
   }
@@ -223,9 +237,9 @@
     fabricCanvas.on('selection:updated', syncControlsToSelection);
 
     // Tool handlers
-    document.querySelectorAll('.btn-tool').forEach(function (btn) {
+    document.querySelectorAll('.tb-btn[data-tool]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        document.querySelectorAll('.btn-tool').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tb-btn[data-tool]').forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
         setTool(btn.dataset.tool);
       });
@@ -235,6 +249,7 @@
     document.getElementById('savePdf').addEventListener('click', savePdf);
     document.getElementById('deleteSelected').addEventListener('click', deleteSelected);
     document.getElementById('copyObj').addEventListener('click', copySelected);
+    document.getElementById('cutObj').addEventListener('click', cutSelected);
     document.getElementById('pasteObj').addEventListener('click', pasteClipboard);
 
     // Đổi font size cho text object đang chọn
@@ -286,6 +301,12 @@
         if (inInput || editingText) return;
         e.preventDefault();
         copySelected();
+        return;
+      }
+      if (e.ctrlKey && e.key === 'x') {
+        if (inInput || editingText) return;
+        e.preventDefault();
+        cutSelected();
         return;
       }
       if (e.ctrlKey && e.key === 'v') {
@@ -442,6 +463,14 @@
     }, CUSTOM_PROPS);
   }
 
+  /** Cut = copy rồi xoá đối tượng đang chọn. */
+  function cutSelected() {
+    var obj = fabricCanvas && fabricCanvas.getActiveObject();
+    if (!obj) return;
+    copySelected();   // save clone to clipboard first
+    deleteSelected(); // then remove from canvas
+  }
+
   /** Paste clipboard, offset 20px để tránh chồng. */
   function pasteClipboard() {
     if (!clipboard) return;
@@ -469,11 +498,17 @@
 
   function setTool(tool) {
     if (!fabricCanvas) return;
+    currentTool = tool;
     clearToolListeners();
     fabricCanvas.isDrawingMode = false;
     fabricCanvas.selection = true;
     fabricCanvas.defaultCursor = 'default';
     fabricCanvas.hoverCursor = 'move';
+
+    // Always keep touch-action:none so Fabric receives all touch events correctly.
+    // Viewport scrolling on mobile is handled manually in JS (pan-on-empty-space).
+    var cw = document.getElementById('canvasWrap');
+    if (cw) cw.style.touchAction = 'none';
 
     switch (tool) {
       case 'select':
@@ -566,8 +601,22 @@
   function renderPdfPage(pageNum) {
     if (!pdfDoc) return;
     pdfDoc.getPage(pageNum).then(function (page) {
-      // Render ở scale thực (BASE_SCALE * DPR) để nét trên màn hình HiDPI/Retina
-      var vp = page.getViewport({ scale: scale });
+      // Scale strategy:
+      //   Desktop : always BASE_SCALE (full quality).
+      //   Mobile  : never scale below 1.0 so text stays readable.
+      //             If the PDF is narrow enough to fit, use BASE_SCALE.
+      //             If wider, cap at 1.0 — user can scroll horizontally.
+      var viewportEl = document.querySelector('.viewport');
+      var availCssWidth = (viewportEl ? viewportEl.clientWidth : window.innerWidth) - 16;
+      var nativeW = page.getViewport({ scale: 1 }).width;
+      var effectiveBaseScale = BASE_SCALE;
+      if (nativeW * BASE_SCALE > availCssWidth) {
+        // Allow up to BASE_SCALE but never smaller than 1.0 (readable minimum)
+        effectiveBaseScale = Math.max(availCssWidth / nativeW, 1.0);
+      }
+      var effectiveScale = effectiveBaseScale * DPR;
+
+      var vp = page.getViewport({ scale: effectiveScale });
       var w = vp.width;
       var h = vp.height;
       // Kích thước CSS hiển thị = kích thước logical (không nhân DPR)
@@ -641,7 +690,7 @@
     });
   }
 
-  document.getElementById('fileInput').addEventListener('change', function (e) {
+  function handleFileInput(e) {
     var file = e.target.files[0];
     if (!file) return;
     var reader = new FileReader();
@@ -649,7 +698,12 @@
       loadPdf(ev.target.result);
     };
     reader.readAsArrayBuffer(file);
-  });
+  }
+
+  document.getElementById('fileInput').addEventListener('change', handleFileInput);
+
+  var fileInputAlt = document.getElementById('fileInputAlt');
+  if (fileInputAlt) fileInputAlt.addEventListener('change', handleFileInput);
 
   document.getElementById('prevPage').addEventListener('click', function () {
     goToPage(currentPageNum - 1);
@@ -983,4 +1037,182 @@
     el.addEventListener('mouseleave', tipHide);
     el.addEventListener('mousedown', tipHide);
   });
+
+  // ─────────────────────────────────────────
+  //  MOBILE: Style bottom sheet
+  // ─────────────────────────────────────────
+  var mobStyleToggle  = document.getElementById('mobStyleToggle');
+  var mobStyleSheet   = document.getElementById('mobStyleSheet');
+  var mobSheetBackdrop = document.getElementById('mobSheetBackdrop');
+  var mobColor        = document.getElementById('mob_color');
+  var mobSize         = document.getElementById('mob_size');
+  var mobSizeValEl    = document.getElementById('mob_sizeVal');
+  var mobFont         = document.getElementById('mob_font');
+
+  function syncMobSwatches(color) {
+    document.querySelectorAll('.mob-swatch').forEach(function (s) {
+      s.classList.toggle('active', s.dataset.mobColor === color);
+    });
+  }
+
+  function syncMobControls() {
+    if (mobColor)    mobColor.value   = strokeColor.value;
+    if (mobSize)   { mobSize.value    = strokeWidth.value;
+                     if (mobSizeValEl) mobSizeValEl.textContent = strokeWidth.value; }
+    if (mobFont)     mobFont.value    = fontSizeSelect.value;
+    syncMobSwatches(strokeColor.value);
+  }
+
+  function openMobSheet() {
+    syncMobControls();
+    mobStyleSheet.classList.add('open');
+    mobSheetBackdrop.classList.add('open');
+    mobStyleSheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeMobSheet() {
+    mobStyleSheet.classList.remove('open');
+    mobSheetBackdrop.classList.remove('open');
+    mobStyleSheet.setAttribute('aria-hidden', 'true');
+  }
+
+  if (mobStyleToggle) {
+    mobStyleToggle.addEventListener('click', openMobSheet);
+    mobSheetBackdrop.addEventListener('click', closeMobSheet);
+
+    // Sync mobile color picker → main control
+    if (mobColor) {
+      mobColor.addEventListener('input', function () {
+        strokeColor.value = mobColor.value;
+        strokeColor.dispatchEvent(new Event('input'));
+        syncMobSwatches(mobColor.value);
+      });
+    }
+
+    // Sync mobile size slider → main control
+    if (mobSize) {
+      mobSize.addEventListener('input', function () {
+        strokeWidth.value = mobSize.value;
+        strokeValue.textContent = mobSize.value;
+        if (mobSizeValEl) mobSizeValEl.textContent = mobSize.value;
+        strokeWidth.dispatchEvent(new Event('input'));
+      });
+    }
+
+    // Sync mobile font select → main control
+    if (mobFont) {
+      mobFont.addEventListener('change', function () {
+        fontSizeSelect.value = mobFont.value;
+        fontSizeSelect.dispatchEvent(new Event('change'));
+      });
+    }
+
+    // Mobile swatches
+    document.querySelectorAll('.mob-swatch').forEach(function (sw) {
+      sw.addEventListener('click', function () {
+        var c = sw.dataset.mobColor;
+        if (mobColor) mobColor.value = c;
+        strokeColor.value = c;
+        strokeColor.dispatchEvent(new Event('input'));
+        syncMobSwatches(c);
+      });
+    });
+
+    // Mobile action buttons — call the same functions used by desktop
+    function wireMobBtn(id, fn) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', function () {
+        closeMobSheet();
+        setTimeout(fn, 60); // short delay so sheet closes first
+      });
+    }
+
+    wireMobBtn('mob_undo',   undo);
+    wireMobBtn('mob_copy',   copySelected);
+    wireMobBtn('mob_cut',    cutSelected);
+    wireMobBtn('mob_paste',  pasteClipboard);
+    wireMobBtn('mob_delete', deleteSelected);
+    wireMobBtn('mob_clear',  clearCurrentPageAnnotations);
+    wireMobBtn('mob_save',   savePdf);
+
+    // Keep mobile controls in sync when user selects objects
+    fabricCanvas.on('selection:created', syncMobControls);
+    fabricCanvas.on('selection:updated', syncMobControls);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  //  MOBILE: Touch tracking + pan-on-empty-space viewport scroll
+  //
+  //  Problem: Fabric.js sets touch-action:none on its own canvas elements,
+  //  so CSS touch-action:pan-x on a parent has no effect.  The fix is to
+  //  keep touch-action:none everywhere and do manual viewport scrolling in
+  //  JS when the user touches empty canvas space in "select" mode.
+  // ─────────────────────────────────────────────────────────────────────
+  var canvasWrapEl = document.getElementById('canvasWrap');
+  if (canvasWrapEl) {
+    var viewportScrollEl = document.querySelector('.viewport');
+    var isPanning      = false;
+    var panStartX      = 0, panStartY = 0;
+    var scrollStartX   = 0, scrollStartY = 0;
+
+    function updatePointerFromTouch(e) {
+      if (!fabricCanvas) return;
+      var touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+      if (!touch) return;
+      var rect = fabricCanvasEl.getBoundingClientRect();
+      var scaleX = fabricCanvas.width  / rect.width;
+      var scaleY = fabricCanvas.height / rect.height;
+      lastPointer.x = (touch.clientX - rect.left) * scaleX;
+      lastPointer.y = (touch.clientY - rect.top)  * scaleY;
+    }
+
+    canvasWrapEl.addEventListener('touchstart', function (e) {
+      updatePointerFromTouch(e);
+
+      // In select mode: if the finger lands on empty space (no object, no
+      // active selection) start a manual viewport pan so the user can scroll
+      // to see parts of the PDF that are off-screen.
+      isPanning = false;
+      if (currentTool !== 'select' || !fabricCanvas || !viewportScrollEl) return;
+      var touch = e.touches[0];
+      if (!touch) return;
+
+      // Convert touch to Fabric canvas coords
+      var rect   = fabricCanvasEl.getBoundingClientRect();
+      var scaleX = fabricCanvas.width  / rect.width;
+      var scaleY = fabricCanvas.height / rect.height;
+      var px = (touch.clientX - rect.left) * scaleX;
+      var py = (touch.clientY - rect.top)  * scaleY;
+      var pt = new fabric.Point(px, py);
+
+      // Only pan when there is nothing to interact with
+      var hitObj    = fabricCanvas.getObjects().find(function (o) { return o.visible && o.containsPoint(pt); });
+      var hasActive = !!fabricCanvas.getActiveObject();
+      if (!hitObj && !hasActive) {
+        isPanning    = true;
+        panStartX    = touch.clientX;
+        panStartY    = touch.clientY;
+        scrollStartX = viewportScrollEl.scrollLeft;
+        scrollStartY = viewportScrollEl.scrollTop;
+      }
+    }, { passive: true });
+
+    canvasWrapEl.addEventListener('touchmove', function (e) {
+      if (isPanning && viewportScrollEl) {
+        var touch = e.touches[0];
+        if (!touch) return;
+        viewportScrollEl.scrollLeft = scrollStartX + (panStartX - touch.clientX);
+        viewportScrollEl.scrollTop  = scrollStartY + (panStartY - touch.clientY);
+        // Don't update lastPointer while panning (irrelevant for paste)
+        return;
+      }
+      updatePointerFromTouch(e);
+    }, { passive: true });
+
+    canvasWrapEl.addEventListener('touchend', function (e) {
+      isPanning = false;
+      updatePointerFromTouch(e);
+    }, { passive: true });
+  }
 })();

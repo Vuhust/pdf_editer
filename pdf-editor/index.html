@@ -2,133 +2,168 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDFix – PDF Editor</title>
+  <!-- maximum-scale=1 prevents accidental zoom while drawing on canvas -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PDFix – Browser PDF Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="tooltip" class="tooltip" role="tooltip"></div>
 
   <div class="app">
-    <!-- ── Row 1: Brand + File + Page nav ── -->
-    <div class="navbar-top">
-      <div class="brand">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="2" width="13" height="17" rx="2" fill="#7aa2f7"/><rect x="8" y="7" width="12" height="15" rx="2" fill="#24283b" stroke="#7aa2f7" stroke-width="1.5"/><path d="M11 12h6M11 15h4" stroke="#7aa2f7" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span class="brand-name">PDFix</span>
-      </div>
 
-      <div class="divider-v"></div>
+    <!-- ══ NAVBAR ══ -->
+    <nav class="navbar">
+      <div class="nav-left">
+        <a class="brand" href="#">
+          <div class="brand-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="2" width="12" height="16" rx="2" fill="#fff" fill-opacity=".25"/>
+              <rect x="8" y="6" width="12" height="16" rx="2" fill="#fff" fill-opacity=".9"/>
+              <path d="M11 11h6M11 14h4" stroke="#4f46e5" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <span class="brand-name">PDFix</span>
+        </a>
 
-      <label class="btn btn-file"
-        data-tooltip="Mở file PDF từ máy tính&#10;File không được upload lên server">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        Open PDF
-        <input type="file" id="fileInput" accept="application/pdf" hidden>
-      </label>
+        <div class="nav-sep"></div>
 
-      <div class="divider-v"></div>
+        <label class="btn btn-open btn-sm"
+          data-tooltip="Open a PDF from your device&#10;Nothing is uploaded to any server">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="btn-open-label">Open PDF</span>
+          <input type="file" id="fileInput" accept="application/pdf" hidden>
+        </label>
 
-      <div class="page-nav">
-        <button type="button" class="btn btn-icon" id="prevPage"
-          data-tooltip="Trang trước">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <input type="number" id="pageNum" min="1" value="1" class="page-num">
-        <span class="page-info" id="pageInfo">/ —</span>
-        <button type="button" class="btn btn-icon" id="nextPage"
-          data-tooltip="Trang tiếp theo">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
+        <div class="nav-sep"></div>
 
-      <div class="spacer"></div>
-
-      <button type="button" class="btn btn-save" id="savePdf"
-        data-tooltip="💾 Lưu file PDF&#10;• Giữ nguyên chất lượng PDF gốc&#10;• Chữ thêm là vector&#10;• Ô che là hình chữ nhật trắng vector">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Save PDF
-      </button>
-    </div>
-
-    <!-- ── Row 2: Tools ── -->
-    <div class="navbar-tools">
-
-      <!-- Group: Draw tools -->
-      <div class="tool-group">
-        <span class="tool-group-label">Tools</span>
-        <div class="tool-group-btns">
-          <button type="button" class="btn btn-tool active" data-tool="select"
-            data-tooltip="↖ Chọn &amp; Di chuyển&#10;• Click để chọn đối tượng&#10;• Kéo để di chuyển&#10;• Double-click vào chữ để sửa&#10;• Delete để xóa">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 0l16 12-7 1.5L9 22 4 0z"/></svg>
+        <div class="page-nav">
+          <button type="button" class="btn-icon-sm" id="prevPage" data-tooltip="Previous page">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <button type="button" class="btn btn-tool" data-tool="text"
-            data-tooltip="T Thêm chữ&#10;• Click vào trang để đặt text&#10;• Chọn cỡ Font và Color trước&#10;• Double-click vào chữ cũ để sửa">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
-          </button>
-          <button type="button" class="btn btn-tool" data-tool="draw"
-            data-tooltip="✎ Vẽ tự do&#10;• Giữ và kéo để vẽ nét&#10;• Size = độ dày, Color = màu nét">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          </button>
-          <button type="button" class="btn btn-tool" data-tool="rect"
-            data-tooltip="▭ Hình chữ nhật&#10;• Giữ và kéo để vẽ&#10;• Color = màu viền, Size = độ dày viền">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
-          </button>
-          <button type="button" class="btn btn-tool" data-tool="ellipse"
-            data-tooltip="○ Hình elip&#10;• Giữ và kéo để vẽ&#10;• Color = màu viền, Size = độ dày viền">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
-          </button>
-          <button type="button" class="btn btn-tool" data-tool="highlight"
-            data-tooltip="🖍 Highlight&#10;• Giữ và kéo để tô vùng&#10;• Màu vàng trong suốt">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h3l6-6"/><path d="M22 4l-3-3-9.5 9.5 3 3L22 4z" fill="#f1c40f" stroke="#f1c40f"/></svg>
-          </button>
-          <button type="button" class="btn btn-tool" data-tool="cover"
-            data-tooltip="⬜ Che trắng&#10;• Giữ và kéo để che vùng&#10;• Dùng để &quot;xóa&quot; nội dung PDF gốc&#10;• Xuất ra là hình trắng vector (không viền)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" fill="white" stroke="currentColor"/><line x1="9" y1="9" x2="15" y2="15" stroke="#f7768e" stroke-width="1.5"/><line x1="15" y1="9" x2="9" y2="15" stroke="#f7768e" stroke-width="1.5"/></svg>
-          </button>
-          <button type="button" class="btn btn-tool" data-tool="sign"
-            data-tooltip="✒ Chữ ký tay&#10;• Giữ và vẽ chữ ký&#10;• Nét đen mảnh&#10;• Ctrl+Z để vẽ lại">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c3-2 6-8 9-8s3 6 6 6"/><path d="M17 17l2 2 3-9"/></svg>
+          <div class="page-ctrl">
+            <input type="number" id="pageNum" min="1" value="1" class="page-input">
+            <span class="page-total" id="pageInfo">/ —</span>
+          </div>
+          <button type="button" class="btn-icon-sm" id="nextPage" data-tooltip="Next page">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
       </div>
 
-      <div class="divider-v"></div>
+      <div class="nav-right">
+        <span class="badge-secure">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          100% client-side
+        </span>
+        <button type="button" class="btn btn-primary btn-sm" id="savePdf"
+          data-tooltip="Export PDF with all your edits&#10;Original quality preserved (vector text + shapes)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span class="btn-save-label">Save PDF</span>
+        </button>
+      </div>
+    </nav>
 
-      <!-- Group: Style -->
-      <div class="tool-group">
-        <span class="tool-group-label">Style</span>
-        <div class="tool-group-btns" style="gap:0.5rem">
-          <!-- Color picker + swatches -->
-          <div class="color-wrap"
-            data-tooltip="Màu chữ / viền / nét vẽ&#10;• Click ô màu để chọn nhanh&#10;• Click palette để mở bảng màu đầy đủ">
-            <input type="color" id="strokeColor" value="#e74c3c">
-            <div class="color-swatches">
-              <span class="swatch" data-color="#000000" style="background:#000000"></span>
-              <span class="swatch" data-color="#ffffff" style="background:#ffffff"></span>
-              <span class="swatch" data-color="#e74c3c" style="background:#e74c3c"></span>
-              <span class="swatch" data-color="#e67e22" style="background:#e67e22"></span>
-              <span class="swatch" data-color="#f1c40f" style="background:#f1c40f"></span>
-              <span class="swatch" data-color="#2ecc71" style="background:#2ecc71"></span>
-              <span class="swatch" data-color="#3498db" style="background:#3498db"></span>
-              <span class="swatch" data-color="#9b59b6" style="background:#9b59b6"></span>
-              <span class="swatch" data-color="#1abc9c" style="background:#1abc9c"></span>
-              <span class="swatch" data-color="#e91e63" style="background:#e91e63"></span>
+    <!-- ══ TOOLBAR (desktop top / mobile bottom) ══ -->
+    <div class="toolbar">
+
+      <div class="tb-group">
+        <span class="tb-label">Edit</span>
+        <div class="tb-btns">
+          <button type="button" class="tb-btn active" data-tool="select"
+            data-tooltip="Select & Move&#10;• Click to select an object&#10;• Drag to move&#10;• Double-click text to edit&#10;• Delete key to remove">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M5.5 3.21V20.8l4.17-4.17 3.42 7.46 1.84-.85-3.42-7.46H18L5.5 3.21z"/></svg>
+            <span>Select</span>
+          </button>
+          <button type="button" class="tb-btn" data-tool="text"
+            data-tooltip="Add Text&#10;• Click anywhere to place text&#10;• Set font size &amp; color first&#10;• Double-click existing text to edit">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+            <span>Text</span>
+          </button>
+          <button type="button" class="tb-btn" data-tool="draw"
+            data-tooltip="Freehand Draw&#10;• Hold and drag to draw&#10;• Adjust Size &amp; Color">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Draw</span>
+          </button>
+          <button type="button" class="tb-btn" data-tool="sign"
+            data-tooltip="Signature&#10;• Draw your handwritten signature&#10;• Ctrl+Z to redo if needed">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c3-2 6-8 9-8s3 6 6 6"/><path d="M17 17l2 2 3-9"/></svg>
+            <span>Sign</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="tb-sep"></div>
+
+      <div class="tb-group">
+        <span class="tb-label">Shapes</span>
+        <div class="tb-btns">
+          <button type="button" class="tb-btn" data-tool="rect"
+            data-tooltip="Rectangle&#10;• Hold and drag to draw&#10;• Color = border color&#10;• Size = border thickness">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="1.5"/></svg>
+            <span>Rect</span>
+          </button>
+          <button type="button" class="tb-btn" data-tool="ellipse"
+            data-tooltip="Ellipse / Circle&#10;• Hold and drag to draw&#10;• Color = border color&#10;• Size = border thickness">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
+            <span>Ellipse</span>
+          </button>
+          <button type="button" class="tb-btn" data-tool="highlight"
+            data-tooltip="Highlight&#10;• Drag to highlight text&#10;• Semi-transparent yellow overlay">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h3l6-6"/><path d="M22 4l-3-3-9.5 9.5 3 3L22 4z" fill="#facc15" stroke="#ca8a04" stroke-width="1.5"/></svg>
+            <span>Mark</span>
+          </button>
+          <button type="button" class="tb-btn" data-tool="cover"
+            data-tooltip="White Cover&#10;• Drag to cover/erase PDF content&#10;• Exports as clean white vector rectangle&#10;• No visible border in final PDF">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" fill="white" stroke="#94a3b8"/><path d="M9 9l6 6M15 9l-6 6" stroke="#ef4444" stroke-width="1.8"/></svg>
+            <span>Cover</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="tb-sep"></div>
+
+      <!-- Style group — hidden on mobile, shown in bottom sheet -->
+      <div class="tb-group tb-group-style">
+        <span class="tb-label">Style</span>
+        <div class="tb-btns" style="gap:0.6rem; flex-wrap:nowrap;">
+
+          <div class="style-item"
+            data-tooltip="Color for text, borders &amp; strokes&#10;• Click the color circle to open picker&#10;• Click swatches for quick colors">
+            <span class="style-item-label">Color</span>
+            <div class="color-row">
+              <div class="color-picker-wrap">
+                <input type="color" id="strokeColor" value="#e74c3c">
+              </div>
+              <div class="color-swatches">
+                <span class="swatch" data-color="#1e293b" style="background:#1e293b" title="Black"></span>
+                <span class="swatch" data-color="#ffffff" style="background:#ffffff" title="White"></span>
+                <span class="swatch" data-color="#ef4444" style="background:#ef4444" title="Red"></span>
+                <span class="swatch" data-color="#f97316" style="background:#f97316" title="Orange"></span>
+                <span class="swatch" data-color="#eab308" style="background:#eab308" title="Yellow"></span>
+                <span class="swatch" data-color="#22c55e" style="background:#22c55e" title="Green"></span>
+                <span class="swatch" data-color="#3b82f6" style="background:#3b82f6" title="Blue"></span>
+                <span class="swatch" data-color="#8b5cf6" style="background:#8b5cf6" title="Purple"></span>
+                <span class="swatch" data-color="#06b6d4" style="background:#06b6d4" title="Cyan"></span>
+                <span class="swatch" data-color="#ec4899" style="background:#ec4899" title="Pink"></span>
+              </div>
             </div>
           </div>
 
-          <!-- Stroke size -->
-          <label class="stroke-wrap"
-            data-tooltip="Độ dày nét vẽ và viền hình">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
-            <input type="range" id="strokeWidth" min="1" max="20" value="3">
-            <span id="strokeValue" class="stroke-val">3</span>
-          </label>
+          <div class="style-item" data-tooltip="Stroke / border thickness">
+            <span class="style-item-label">Size</span>
+            <div class="size-row">
+              <input type="range" id="strokeWidth" min="1" max="20" value="3">
+              <span id="strokeValue" class="size-val">3</span>
+            </div>
+          </div>
 
-          <!-- Font size -->
-          <label class="font-size-wrap"
-            data-tooltip="Cỡ chữ (pt)&#10;• Chọn trước khi thêm text&#10;• Hoặc chọn text đã có rồi đổi">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
-            <select id="fontSizeSelect">
+          <div class="style-item"
+            data-tooltip="Font size (pt) for Text tool&#10;• Select before adding text&#10;• Or select existing text and change">
+            <span class="style-item-label">Font</span>
+            <select id="fontSizeSelect" class="font-select">
               <option value="8">8</option>
               <option value="10">10</option>
               <option value="12">12</option>
@@ -144,49 +179,171 @@
               <option value="64">64</option>
               <option value="72">72</option>
             </select>
-          </label>
+          </div>
+
         </div>
       </div>
 
-      <div class="divider-v"></div>
+      <div class="tb-sep tb-sep-style"></div>
 
-      <!-- Group: Actions -->
-      <div class="tool-group">
-        <span class="tool-group-label">Actions</span>
-        <div class="tool-group-btns">
-          <button type="button" class="btn btn-action" id="copyObj"
-            data-tooltip="Copy (Ctrl+C)&#10;• Chọn đối tượng trước&#10;• Hỗ trợ chọn nhiều">
+      <div class="tb-group">
+        <span class="tb-label">Actions</span>
+        <div class="tb-btns">
+          <button type="button" class="tb-btn" id="copyObj"
+            data-tooltip="Copy selected object (Ctrl+C)&#10;• Supports multi-select">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Copy
+            <span>Copy</span>
           </button>
-          <button type="button" class="btn btn-action" id="pasteObj"
-            data-tooltip="Paste (Ctrl+V)&#10;• Di chuột đến vị trí muốn paste&#10;• Object xuất hiện tại con trỏ">
+          <button type="button" class="tb-btn" id="cutObj"
+            data-tooltip="Cut selected object (Ctrl+X)&#10;• Copies to clipboard then removes&#10;• Paste with Ctrl+V">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="20" r="2"/><circle cx="6" cy="4" r="2"/><line x1="6" y1="6" x2="6" y2="18"/><line x1="21" y1="5" x2="8.5" y2="12"/><line x1="21" y1="19" x2="8.5" y2="12"/></svg>
+            <span>Cut</span>
+          </button>
+          <button type="button" class="tb-btn" id="pasteObj"
+            data-tooltip="Paste at cursor position (Ctrl+V)&#10;• Move mouse to target location first">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
-            Paste
+            <span>Paste</span>
           </button>
-          <button type="button" class="btn btn-action btn-danger" id="deleteSelected"
-            data-tooltip="Xóa đối tượng đang chọn&#10;• Hoặc dùng phím Delete&#10;• Ctrl+Z để hoàn tác">
+          <button type="button" class="tb-btn tb-btn-danger" id="deleteSelected"
+            data-tooltip="Delete selected object(s)&#10;• Or press Delete / Backspace key&#10;• Ctrl+Z to undo">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            Delete
+            <span>Delete</span>
           </button>
-          <button type="button" class="btn btn-action" id="clearPage"
-            data-tooltip="Xóa toàn bộ annotation trang hiện tại&#10;• Không ảnh hưởng nội dung PDF gốc&#10;• Không thể Ctrl+Z sau khi clear">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11l4 4m0-4l-4 4"/></svg>
-            Clear
+          <button type="button" class="tb-btn" id="clearPage"
+            data-tooltip="Clear all annotations on this page&#10;• Does not affect original PDF content&#10;• Cannot be undone with Ctrl+Z">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11l4 4m0-4l-4 4"/></svg>
+            <span>Clear</span>
           </button>
         </div>
       </div>
 
-    </div><!-- /.navbar-tools -->
+    </div><!-- /.toolbar -->
 
+    <!-- ══ CANVAS AREA ══ -->
     <main class="viewport">
       <div class="canvas-wrap" id="canvasWrap">
         <canvas id="pdfCanvas"></canvas>
         <canvas id="fabricCanvas"></canvas>
       </div>
-      <p class="hint" id="hint">Open a PDF file to start editing — nothing leaves your browser.</p>
+
+      <div class="empty-state" id="hint">
+        <div class="empty-icon">
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none"><rect x="4" y="2" width="12" height="17" rx="2" fill="#e0e7ff"/><rect x="8" y="5" width="12" height="17" rx="2" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/><path d="M11 10h6M11 13h4M11 16h5" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="empty-title">Open a PDF to get started</h3>
+        <p class="empty-sub">Tap <strong>Open PDF</strong> to load a file.<br>Everything runs in your browser — nothing is uploaded.</p>
+        <label class="btn btn-primary btn-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Open PDF File
+          <input type="file" accept="application/pdf" id="fileInputAlt" hidden>
+        </label>
+      </div>
     </main>
-  </div>
+
+    <!-- ══ MOBILE: Style FAB ══ -->
+    <button class="mob-fab" id="mobStyleToggle" aria-label="Style & Actions">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="6" cy="18" r="2"/></svg>
+      Style
+    </button>
+
+    <!-- ══ MOBILE: backdrop ══ -->
+    <div class="mob-sheet-backdrop" id="mobSheetBackdrop"></div>
+
+    <!-- ══ MOBILE: Style bottom sheet ══ -->
+    <div class="mob-style-sheet" id="mobStyleSheet" aria-hidden="true">
+      <div class="mob-sheet-handle"></div>
+      <div class="mob-sheet-body">
+
+        <!-- Color -->
+        <div class="mob-sheet-section">
+          <span class="mob-sheet-label">Color</span>
+          <div class="mob-color-row">
+            <div class="mob-color-picker-wrap">
+              <input type="color" id="mob_color" value="#e74c3c">
+            </div>
+            <div class="mob-swatches">
+              <span class="mob-swatch" data-mob-color="#1e293b" style="background:#1e293b"></span>
+              <span class="mob-swatch" data-mob-color="#ffffff" style="background:#ffffff"></span>
+              <span class="mob-swatch" data-mob-color="#ef4444" style="background:#ef4444"></span>
+              <span class="mob-swatch" data-mob-color="#f97316" style="background:#f97316"></span>
+              <span class="mob-swatch" data-mob-color="#eab308" style="background:#eab308"></span>
+              <span class="mob-swatch" data-mob-color="#22c55e" style="background:#22c55e"></span>
+              <span class="mob-swatch" data-mob-color="#3b82f6" style="background:#3b82f6"></span>
+              <span class="mob-swatch" data-mob-color="#8b5cf6" style="background:#8b5cf6"></span>
+              <span class="mob-swatch" data-mob-color="#06b6d4" style="background:#06b6d4"></span>
+              <span class="mob-swatch" data-mob-color="#ec4899" style="background:#ec4899"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Size + Font -->
+        <div class="mob-sheet-section">
+          <div class="mob-sheet-row-split">
+            <div class="mob-sheet-col">
+              <span class="mob-sheet-label">Stroke size</span>
+              <div class="mob-size-row">
+                <input type="range" id="mob_size" min="1" max="20" value="3" class="mob-range">
+                <span id="mob_sizeVal" class="mob-size-val">3</span>
+              </div>
+            </div>
+            <div class="mob-sheet-col mob-sheet-col-narrow">
+              <span class="mob-sheet-label">Font size</span>
+              <select id="mob_font" class="mob-font-select">
+                <option value="8">8</option>
+                <option value="10">10</option>
+                <option value="12">12</option>
+                <option value="14">14</option>
+                <option value="16">16</option>
+                <option value="18">18</option>
+                <option value="20">20</option>
+                <option value="24">24</option>
+                <option value="28">28</option>
+                <option value="32">32</option>
+                <option value="36" selected>36</option>
+                <option value="48">48</option>
+                <option value="64">64</option>
+                <option value="72">72</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions grid -->
+        <div class="mob-sheet-section mob-actions-grid">
+          <button class="mob-act-btn" id="mob_undo">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            Undo
+          </button>
+          <button class="mob-act-btn" id="mob_copy">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          </button>
+          <button class="mob-act-btn" id="mob_cut">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="20" r="2"/><circle cx="6" cy="4" r="2"/><line x1="6" y1="6" x2="6" y2="18"/><line x1="21" y1="5" x2="8.5" y2="12"/><line x1="21" y1="19" x2="8.5" y2="12"/></svg>
+            Cut
+          </button>
+          <button class="mob-act-btn" id="mob_paste">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+            Paste
+          </button>
+          <button class="mob-act-btn mob-act-danger" id="mob_delete">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            Delete
+          </button>
+          <button class="mob-act-btn mob-act-danger-soft" id="mob_clear">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11l4 4m0-4l-4 4"/></svg>
+            Clear page
+          </button>
+          <button class="mob-act-btn mob-act-primary" id="mob_save">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save PDF
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /.app -->
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
