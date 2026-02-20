@@ -529,10 +529,10 @@ body {
    Empty state
 ══════════════════════════════════════════ */
 .empty-state {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  /* margin:auto on a flex item absorbs all remaining space equally on every
+     side → always centered regardless of justify-content or scroll-width. */
+  margin: auto;
+  flex-shrink: 0;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -707,25 +707,29 @@ body {
     height: 20px;
   }
 
-  /* ── Viewport: full 2-direction scroll, fixes left-side clip bug ── */
+  /* ── Viewport: left-aligned so horizontal scroll always works ──
+     NEVER use justify-content:center here.  When the PDF canvas is wider
+     than the screen a centered flex item starts at a negative offset and
+     the left side becomes permanently unreachable (scrollLeft can't go < 0).
+     flex-start keeps the canvas at x=0; user swipes RIGHT to see the rest. */
   .viewport {
-    /* flex-start = left-aligned fallback (old browsers — no left-side clip) */
     justify-content: flex-start;
-    /* Modern: center when PDF fits, start-align when PDF overflows → no left-clip */
-    justify-content: safe center;
     align-items: flex-start;
     overflow-x: auto;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
     padding-top: 0.75rem;
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 0.75rem);
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
 
-  /* Small margin so PDF doesn't touch screen edge when it nearly fits */
-  .canvas-wrap { margin: 0 0.5rem; }
+  /* flex-shrink:0 stops flexbox from squeezing canvas-wrap below the PDF
+     width, which would cause overflow:hidden to clip the right side. */
+  .canvas-wrap {
+    flex-shrink: 0;
+    margin: 0;
+  }
 
   /* touch-action is always 'none' on #canvasWrap so Fabric.js receives every
      touch event correctly.  Viewport scrolling on mobile is handled in JS:

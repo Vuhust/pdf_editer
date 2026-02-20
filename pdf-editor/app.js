@@ -170,7 +170,8 @@
       selection: true,
       preserveObjectStacking: true,
     });
-    // Fabric.js replaces the canvas with a wrapper div; position it on top of the PDF canvas so it receives clicks
+
+    // Position the Fabric wrapper div on top of the PDF canvas so it receives all interactions
     var wrapper = fabricCanvas.wrapperEl || fabricCanvas.lowerCanvasEl.parentNode;
     if (wrapper) {
       wrapper.style.position = 'absolute';
@@ -179,6 +180,7 @@
       wrapper.style.pointerEvents = 'auto';
       wrapper.style.zIndex = '1';
     }
+
     fabricCanvas.freeDrawingBrush.width = parseInt(strokeWidth.value, 10);
     fabricCanvas.freeDrawingBrush.color = strokeColor.value;
 
@@ -1167,36 +1169,41 @@
       lastPointer.y = (touch.clientY - rect.top)  * scaleY;
     }
 
+    // Use CAPTURE phase so our handlers fire before Fabric.js bubble handlers.
+    // This guarantees we can intercept pan gestures regardless of Fabric's
+    // internal preventDefault() calls.
     canvasWrapEl.addEventListener('touchstart', function (e) {
+      isPanning = false;
       updatePointerFromTouch(e);
 
-      // In select mode: if the finger lands on empty space (no object, no
-      // active selection) start a manual viewport pan so the user can scroll
-      // to see parts of the PDF that are off-screen.
-      isPanning = false;
       if (currentTool !== 'select' || !fabricCanvas || !viewportScrollEl) return;
       var touch = e.touches[0];
       if (!touch) return;
 
-      // Convert touch to Fabric canvas coords
+      // Convert screen coords to Fabric's internal canvas pixel space
       var rect   = fabricCanvasEl.getBoundingClientRect();
-      var scaleX = fabricCanvas.width  / rect.width;
-      var scaleY = fabricCanvas.height / rect.height;
-      var px = (touch.clientX - rect.left) * scaleX;
-      var py = (touch.clientY - rect.top)  * scaleY;
-      var pt = new fabric.Point(px, py);
+      var scaleX = fabricCanvas.width  / (rect.width  || 1);
+      var scaleY = fabricCanvas.height / (rect.height || 1);
+      var px     = (touch.clientX - rect.left) * scaleX;
+      var py     = (touch.clientY - rect.top)  * scaleY;
+      var pt     = new fabric.Point(px, py);
 
-      // Only pan when there is nothing to interact with
-      var hitObj    = fabricCanvas.getObjects().find(function (o) { return o.visible && o.containsPoint(pt); });
+      var hitObj    = fabricCanvas.getObjects().find(function (o) {
+        return o.visible && o.containsPoint(pt);
+      });
       var hasActive = !!fabricCanvas.getActiveObject();
+
       if (!hitObj && !hasActive) {
+        // Empty space — take over the gesture for viewport panning.
+        // stopPropagation prevents Fabric from starting a selection box drag.
         isPanning    = true;
         panStartX    = touch.clientX;
         panStartY    = touch.clientY;
         scrollStartX = viewportScrollEl.scrollLeft;
         scrollStartY = viewportScrollEl.scrollTop;
+        e.stopPropagation();
       }
-    }, { passive: true });
+    }, { capture: true, passive: true });
 
     canvasWrapEl.addEventListener('touchmove', function (e) {
       if (isPanning && viewportScrollEl) {
@@ -1204,15 +1211,15 @@
         if (!touch) return;
         viewportScrollEl.scrollLeft = scrollStartX + (panStartX - touch.clientX);
         viewportScrollEl.scrollTop  = scrollStartY + (panStartY - touch.clientY);
-        // Don't update lastPointer while panning (irrelevant for paste)
+        e.stopPropagation(); // prevent Fabric drag while we're scrolling
         return;
       }
       updatePointerFromTouch(e);
-    }, { passive: true });
+    }, { capture: true, passive: true });
 
     canvasWrapEl.addEventListener('touchend', function (e) {
       isPanning = false;
       updatePointerFromTouch(e);
-    }, { passive: true });
+    }, { capture: true, passive: true });
   }
 })();
