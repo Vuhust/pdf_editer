@@ -494,6 +494,7 @@ body {
 ══════════════════════════════════════════ */
 .viewport {
   flex: 1;
+  min-height: 0;        /* allow flex item to shrink so overflow-y actually scrolls */
   overflow: auto;
   display: flex;
   align-items: flex-start;

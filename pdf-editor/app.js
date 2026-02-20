@@ -603,22 +603,7 @@
   function renderPdfPage(pageNum) {
     if (!pdfDoc) return;
     pdfDoc.getPage(pageNum).then(function (page) {
-      // Scale strategy:
-      //   Desktop : always BASE_SCALE (full quality).
-      //   Mobile  : never scale below 1.0 so text stays readable.
-      //             If the PDF is narrow enough to fit, use BASE_SCALE.
-      //             If wider, cap at 1.0 — user can scroll horizontally.
-      var viewportEl = document.querySelector('.viewport');
-      var availCssWidth = (viewportEl ? viewportEl.clientWidth : window.innerWidth) - 16;
-      var nativeW = page.getViewport({ scale: 1 }).width;
-      var effectiveBaseScale = BASE_SCALE;
-      if (nativeW * BASE_SCALE > availCssWidth) {
-        // Allow up to BASE_SCALE but never smaller than 1.0 (readable minimum)
-        effectiveBaseScale = Math.max(availCssWidth / nativeW, 1.0);
-      }
-      var effectiveScale = effectiveBaseScale * DPR;
-
-      var vp = page.getViewport({ scale: effectiveScale });
+      var vp = page.getViewport({ scale: scale });
       var w = vp.width;
       var h = vp.height;
       // Kích thước CSS hiển thị = kích thước logical (không nhân DPR)
@@ -864,9 +849,8 @@
         var vpExport = page.getViewport({ scale: exportScale });
         var w = vpExport.width;
         var h = vpExport.height;
-        var displayVp = page.getViewport({ scale: scale });
-        var displayW = displayVp.width;
-        var displayH = displayVp.height;
+        var displayW = w;
+        var displayH = h;
 
         var canvas = document.createElement('canvas');
         canvas.width = w;
@@ -929,9 +913,9 @@
             var pageNum = pageIndex + 1;
             chain = chain.then(function () {
               return pdfDoc.getPage(pageNum).then(function (pdfJsPage) {
-                var vp = pdfJsPage.getViewport({ scale: scale });
-                var displayW = vp.width;
-                var displayH = vp.height;
+                var displayVp = pdfJsPage.getViewport({ scale: scale });
+                var displayW = displayVp.width;
+                var displayH = displayVp.height;
                 var rawData = pageNum === currentPageNum && fabricCanvas
                   ? fabricCanvas.toJSON(CUSTOM_PROPS)
                   : (annotationsByPage[pageNum] || null);
@@ -1176,25 +1160,32 @@
       isPanning = false;
       updatePointerFromTouch(e);
 
-      if (currentTool !== 'select' || !fabricCanvas || !viewportScrollEl) return;
+      if (!fabricCanvas || !viewportScrollEl) return;
       var touch = e.touches[0];
       if (!touch) return;
 
-      // Convert screen coords to Fabric's internal canvas pixel space
-      var rect   = fabricCanvasEl.getBoundingClientRect();
-      var scaleX = fabricCanvas.width  / (rect.width  || 1);
-      var scaleY = fabricCanvas.height / (rect.height || 1);
-      var px     = (touch.clientX - rect.left) * scaleX;
-      var py     = (touch.clientY - rect.top)  * scaleY;
-      var pt     = new fabric.Point(px, py);
+      // In select mode: only pan when touching empty space (not an annotation).
+      // In any other tool mode: always pan — the tool handles its own drawing
+      // separately on mouse:down, so dragging anywhere should scroll the page.
+      var shouldPan = false;
+      if (currentTool !== 'select') {
+        shouldPan = true;
+      } else {
+        // Convert screen coords to Fabric's internal canvas pixel space
+        var rect   = fabricCanvasEl.getBoundingClientRect();
+        var scaleX = fabricCanvas.width  / (rect.width  || 1);
+        var scaleY = fabricCanvas.height / (rect.height || 1);
+        var px     = (touch.clientX - rect.left) * scaleX;
+        var py     = (touch.clientY - rect.top)  * scaleY;
+        var pt     = new fabric.Point(px, py);
+        var hitObj = fabricCanvas.getObjects().find(function (o) {
+          return o.visible && o.containsPoint(pt);
+        });
+        shouldPan = !hitObj;
+      }
 
-      var hitObj    = fabricCanvas.getObjects().find(function (o) {
-        return o.visible && o.containsPoint(pt);
-      });
-      var hasActive = !!fabricCanvas.getActiveObject();
-
-      if (!hitObj && !hasActive) {
-        // Empty space — take over the gesture for viewport panning.
+      if (shouldPan) {
+        // Empty space (or non-select tool) — take over the gesture for viewport panning.
         // stopPropagation prevents Fabric from starting a selection box drag.
         isPanning    = true;
         panStartX    = touch.clientX;
@@ -1211,11 +1202,12 @@
         if (!touch) return;
         viewportScrollEl.scrollLeft = scrollStartX + (panStartX - touch.clientX);
         viewportScrollEl.scrollTop  = scrollStartY + (panStartY - touch.clientY);
-        e.stopPropagation(); // prevent Fabric drag while we're scrolling
+        e.stopPropagation();
+        e.preventDefault(); // stop Fabric from drawing a selection box
         return;
       }
       updatePointerFromTouch(e);
-    }, { capture: true, passive: true });
+    }, { capture: true, passive: false });
 
     canvasWrapEl.addEventListener('touchend', function (e) {
       isPanning = false;
