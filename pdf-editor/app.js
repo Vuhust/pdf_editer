@@ -22,6 +22,11 @@
   var strokeColor = document.getElementById('strokeColor');
   var strokeWidth = document.getElementById('strokeWidth');
   var strokeValue = document.getElementById('strokeValue');
+  var fontSizeSelect = document.getElementById('fontSizeSelect');
+
+  // Clipboard cho copy/paste
+  var clipboard = null;
+  var lastPointer = { x: 0, y: 0 }; // Vị trí con trỏ chuột cuối trên canvas
 
   // Bản gốc PDF (ArrayBuffer) để lưu ra giữ nguyên chất lượng, không raster lại
   var pdfArrayBuffer = null;
@@ -51,11 +56,12 @@
   function textMouseDownHandler(ev) {
     pushUndoState();
     var pt = fabricCanvas.getPointer(ev.e);
+    var fontSize = parseInt(fontSizeSelect.value, 10) || 36;
     var text = new fabric.IText('Text', {
       left: pt.x,
       top: pt.y,
       fontFamily: 'Arial',
-      fontSize: 18,
+      fontSize: fontSize,
       fill: strokeColor.value,
     });
     fabricCanvas.add(text);
@@ -165,16 +171,56 @@
     strokeWidth.addEventListener('input', function () {
       var v = parseInt(strokeWidth.value, 10);
       strokeValue.textContent = v;
-      if (fabricCanvas) {
-        fabricCanvas.freeDrawingBrush.width = v;
-      }
+      if (!fabricCanvas) return;
+      fabricCanvas.freeDrawingBrush.width = v;
+      applyToSelected(function (obj) {
+        if (obj.type === 'i-text' || obj.type === 'text') return; // text dùng fontSize
+        obj.set('strokeWidth', v);
+      });
     });
     strokeColor.addEventListener('input', function () {
-      if (fabricCanvas) {
-        fabricCanvas.freeDrawingBrush.color = strokeColor.value;
-        fabricCanvas.getContext('2d').strokeStyle = strokeColor.value;
-      }
+      if (!fabricCanvas) return;
+      fabricCanvas.freeDrawingBrush.color = strokeColor.value;
+      applyToSelected(function (obj) {
+        var t = obj.type;
+        if (t === 'i-text' || t === 'text') {
+          obj.set('fill', strokeColor.value);
+        } else if (t === 'path') {
+          obj.set('stroke', strokeColor.value);
+        } else {
+          // rect, ellipse, highlight, cover, sign path
+          obj.set('stroke', strokeColor.value);
+        }
+      });
     });
+
+    // Bảng màu nhanh
+    function applyColor(hex) {
+      strokeColor.value = hex;
+      strokeColor.dispatchEvent(new Event('input'));
+      document.querySelectorAll('.swatch').forEach(function (s) {
+        s.classList.toggle('active', s.dataset.color === hex);
+      });
+    }
+    document.querySelectorAll('.swatch').forEach(function (sw) {
+      sw.addEventListener('click', function () {
+        applyColor(sw.dataset.color);
+      });
+    });
+    // Khi dùng color picker tùy chỉnh → bỏ active swatch
+    strokeColor.addEventListener('input', function () {
+      document.querySelectorAll('.swatch').forEach(function (s) {
+        s.classList.toggle('active', s.dataset.color === strokeColor.value);
+      });
+    });
+    // Set swatch active mặc định
+    document.querySelectorAll('.swatch').forEach(function (s) {
+      s.classList.toggle('active', s.dataset.color === strokeColor.value);
+    });
+
+    // Đồng bộ Color và Size selector khi chọn đối tượng
+    fabricCanvas.on('selection:created', syncControlsToSelection);
+    fabricCanvas.on('selection:updated', syncControlsToSelection);
 
     // Tool handlers
     document.querySelectorAll('.btn-tool').forEach(function (btn) {
@@ -188,19 +234,78 @@
     document.getElementById('clearPage').addEventListener('click', clearCurrentPageAnnotations);
     document.getElementById('savePdf').addEventListener('click', savePdf);
     document.getElementById('deleteSelected').addEventListener('click', deleteSelected);
+    document.getElementById('copyObj').addEventListener('click', copySelected);
+    document.getElementById('pasteObj').addEventListener('click', pasteClipboard);
 
-    // Undo (Ctrl+Z) and push state before Delete/Backspace
+    // Đổi font size cho text object đang chọn
+    fontSizeSelect.addEventListener('change', function () {
+      var obj = fabricCanvas && fabricCanvas.getActiveObject();
+      if (!obj) return;
+      var size = parseInt(fontSizeSelect.value, 10);
+      if (!size) return;
+      if (obj.type === 'i-text' || obj.type === 'text') {
+        pushUndoState();
+        obj.set('fontSize', size);
+        fabricCanvas.renderAll();
+      } else if (obj.type === 'activeSelection') {
+        pushUndoState();
+        obj.getObjects().forEach(function (o) {
+          if (o.type === 'i-text' || o.type === 'text') o.set('fontSize', size);
+        });
+        fabricCanvas.renderAll();
+      }
+    });
+
+    // Khi chọn text object → tự động cập nhật font size selector
+
+    // Theo dõi vị trí con trỏ chuột cuối để paste tại đó
+    fabricCanvas.on('mouse:move', function (ev) {
+      var pt = fabricCanvas.getPointer(ev.e);
+      lastPointer.x = pt.x;
+      lastPointer.y = pt.y;
+    });
+    fabricCanvas.on('mouse:down', function (ev) {
+      var pt = fabricCanvas.getPointer(ev.e);
+      lastPointer.x = pt.x;
+      lastPointer.y = pt.y;
+    });
+
+    // Undo (Ctrl+Z), Copy (Ctrl+C), Paste (Ctrl+V), Delete
     document.addEventListener('keydown', function (e) {
+      var active = document.activeElement;
+      var inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+      var editingText = fabricCanvas.getActiveObject() && fabricCanvas.getActiveObject().isEditing;
+
       if (e.ctrlKey && e.key === 'z') {
+        if (inInput || editingText) return;
         e.preventDefault();
         undo();
         return;
       }
+      if (e.ctrlKey && e.key === 'c') {
+        if (inInput || editingText) return;
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      if (e.ctrlKey && e.key === 'v') {
+        if (inInput || editingText) return;
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        var active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+        if (inInput || editingText) return;
         var obj = fabricCanvas.getActiveObject();
-        if (obj && !obj.isEditing) pushUndoState();
+        if (!obj) return;
+        e.preventDefault();
+        pushUndoState();
+        var toRemove = (obj.type === 'activeSelection' || obj.type === 'group')
+          ? obj.getObjects()
+          : [obj];
+        toRemove.forEach(function (o) { fabricCanvas.remove(o); });
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.renderAll();
       }
     });
 
@@ -256,6 +361,110 @@
       annotationsByPage[currentPageNum] = state;
       setTimeout(function () { skipNextPush = false; }, 100);
     });
+  }
+
+  /** Áp dụng callback lên tất cả đối tượng đang chọn, sau đó render. */
+  function applyToSelected(fn) {
+    if (!fabricCanvas) return;
+    var active = fabricCanvas.getActiveObject();
+    if (!active) return;
+    pushUndoState();
+    var targets = (active.type === 'activeSelection' || active.type === 'group')
+      ? active.getObjects()
+      : [active];
+    targets.forEach(fn);
+    active.setCoords && active.setCoords();
+    fabricCanvas.requestRenderAll();
+  }
+
+  /** Đồng bộ Color, Size, Font selector theo đối tượng đang chọn. */
+  function syncControlsToSelection() {
+    var active = fabricCanvas.getActiveObject();
+    if (!active) return;
+    var targets = (active.type === 'activeSelection' || active.type === 'group')
+      ? active.getObjects()
+      : [active];
+    var first = targets[0];
+    if (!first) return;
+    var t = first.type;
+    // Màu
+    var color = null;
+    if (t === 'i-text' || t === 'text') {
+      color = first.fill;
+    } else {
+      color = first.stroke;
+    }
+    if (color && /^#[0-9a-f]{6}$/i.test(color)) {
+      strokeColor.value = color;
+      document.querySelectorAll('.swatch').forEach(function (s) {
+        s.classList.toggle('active', s.dataset.color === color);
+      });
+    }
+    // Độ dày
+    if (t !== 'i-text' && t !== 'text' && first.strokeWidth != null) {
+      var sw = Math.round(first.strokeWidth);
+      if (sw >= 1 && sw <= 20) {
+        strokeWidth.value = sw;
+        strokeValue.textContent = sw;
+      }
+    }
+    syncFontSizeSelector();
+  }
+
+  /** Đồng bộ font size selector khi chọn text object. */
+  function syncFontSizeSelector() {
+    var obj = fabricCanvas.getActiveObject();
+    if (!obj) return;
+    var target = obj;
+    if (obj.type === 'activeSelection') {
+      var objs = obj.getObjects();
+      target = objs.find(function (o) { return o.type === 'i-text' || o.type === 'text'; });
+    }
+    if (target && (target.type === 'i-text' || target.type === 'text')) {
+      var size = Math.round(target.fontSize || 18);
+      // Chọn option gần nhất trong select
+      var best = null;
+      var bestDiff = Infinity;
+      Array.from(fontSizeSelect.options).forEach(function (opt) {
+        var diff = Math.abs(parseInt(opt.value, 10) - size);
+        if (diff < bestDiff) { bestDiff = diff; best = opt.value; }
+      });
+      if (best) fontSizeSelect.value = best;
+    }
+  }
+
+  /** Copy đối tượng đang chọn vào clipboard nội bộ. */
+  function copySelected() {
+    var obj = fabricCanvas.getActiveObject();
+    if (!obj) return;
+    obj.clone(function (cloned) {
+      clipboard = cloned;
+    }, CUSTOM_PROPS);
+  }
+
+  /** Paste clipboard, offset 20px để tránh chồng. */
+  function pasteClipboard() {
+    if (!clipboard) return;
+    clipboard.clone(function (cloned) {
+      pushUndoState();
+      // Tính offset để tâm của object trùng với lastPointer
+      var w = cloned.getScaledWidth ? cloned.getScaledWidth() : (cloned.width || 0);
+      var h = cloned.getScaledHeight ? cloned.getScaledHeight() : (cloned.height || 0);
+      cloned.set({
+        left: lastPointer.x - w / 2,
+        top: lastPointer.y - h / 2,
+        evented: true,
+      });
+      if (cloned.type === 'activeSelection') {
+        cloned.canvas = fabricCanvas;
+        cloned.getObjects().forEach(function (o) { fabricCanvas.add(o); });
+        cloned.setCoords();
+      } else {
+        fabricCanvas.add(cloned);
+      }
+      fabricCanvas.setActiveObject(cloned);
+      fabricCanvas.renderAll();
+    }, CUSTOM_PROPS);
   }
 
   function setTool(tool) {
@@ -405,7 +614,7 @@
     saveCurrentPageAnnotations();
     currentPageNum = n;
     pageNumInput.value = n;
-    pageInfo.textContent = 'Page ' + n + ' / ' + numPages;
+    pageInfo.textContent = '/ ' + numPages;
     renderPdfPage(currentPageNum);
   }
 
@@ -422,7 +631,7 @@
       currentPageNum = 1;
       pageNumInput.value = 1;
       pageNumInput.max = numPages;
-      pageInfo.textContent = 'Page 1 / ' + numPages;
+      pageInfo.textContent = '/ ' + numPages;
       hint.classList.add('hidden');
       canvasWrap.classList.remove('hidden');
       renderPdfPage(1);
@@ -735,4 +944,43 @@
   }
 
   initFabric();
+
+  // ── Tooltip ──
+  var tip = document.getElementById('tooltip');
+  var tipHideTimer = null;
+
+  function tipShow(el, e) {
+    var text = el.getAttribute('data-tooltip');
+    if (!text || !tip) return;
+    clearTimeout(tipHideTimer);
+    tip.textContent = text;
+    tip.classList.add('visible');
+    tipPosition(e);
+  }
+
+  function tipPosition(e) {
+    if (!tip) return;
+    var margin = 14;
+    var tw = tip.offsetWidth;
+    var th = tip.offsetHeight;
+    var x = e.clientX + margin;
+    var y = e.clientY + margin;
+    if (x + tw > window.innerWidth - 8) x = e.clientX - tw - margin;
+    if (y + th > window.innerHeight - 8) y = e.clientY - th - margin;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+
+  function tipHide() {
+    tipHideTimer = setTimeout(function () {
+      if (tip) tip.classList.remove('visible');
+    }, 80);
+  }
+
+  document.querySelectorAll('[data-tooltip]').forEach(function (el) {
+    el.addEventListener('mouseenter', function (e) { tipShow(el, e); });
+    el.addEventListener('mousemove', function (e) { tipPosition(e); });
+    el.addEventListener('mouseleave', tipHide);
+    el.addEventListener('mousedown', tipHide);
+  });
 })();
