@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDFix – PDF Editor (Client-side)</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <label class="btn btn-file">
+          📂 Open PDF
+          <input type="file" id="fileInput" accept="application/pdf" hidden>
+        </label>
+        <span class="page-info" id="pageInfo">No PDF loaded</span>
+        <div class="page-nav">
+          <button type="button" class="btn btn-icon" id="prevPage" title="Previous page">◀</button>
+          <input type="number" id="pageNum" min="1" value="1" class="page-num">
+          <button type="button" class="btn btn-icon" id="nextPage" title="Next page">▶</button>
+        </div>
+      </div>
+      <div class="toolbar-center tools">
+        <button type="button" class="btn btn-tool active" data-tool="select" title="Chọn / Double-click chữ để sửa">↖</button>
+        <button type="button" class="btn btn-tool" data-tool="text" title="Thêm chữ">T</button>
+        <button type="button" class="btn btn-tool" data-tool="draw" title="Vẽ tay">✎</button>
+        <button type="button" class="btn btn-tool" data-tool="rect" title="Hình chữ nhật">▭</button>
+        <button type="button" class="btn btn-tool" data-tool="ellipse" title="Hình elip">○</button>
+        <button type="button" class="btn btn-tool" data-tool="highlight" title="Tô highlight">🖍</button>
+        <button type="button" class="btn btn-tool" data-tool="cover" title="Che trắng nội dung PDF (chữ/ảnh gốc)">⬜</button>
+        <button type="button" class="btn btn-tool" data-tool="sign" title="Chữ ký">✒</button>
+      </div>
+      <div class="toolbar-right">
+        <label class="color-wrap">
+          Color
+          <input type="color" id="strokeColor" value="#e74c3c">
+        </label>
+        <label class="stroke-wrap">
+          Size
+          <input type="range" id="strokeWidth" min="1" max="20" value="3">
+          <span id="strokeValue">3</span>
+        </label>
+        <button type="button" class="btn" id="deleteSelected" title="Xóa đối tượng đang chọn (chữ, hình, ảnh đã thêm)">🗑 Xóa chọn</button>
+        <button type="button" class="btn" id="clearPage">Clear annotations</button>
+        <button type="button" class="btn btn-primary" id="savePdf">💾 Save PDF</button>
+      </div>
+    </header>
+    <main class="viewport">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="pdfCanvas"></canvas>
+        <canvas id="fabricCanvas"></canvas>
+      </div>
+      <p class="hint" id="hint">Open a PDF file to start editing. Everything runs in your browser — no uploads.</p>
+    </main>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
